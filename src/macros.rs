@@ -173,6 +173,26 @@ macro_rules! define_index_type {
 }
 
 #[macro_export]
+macro_rules! define_non_zero_index_type {
+    // public api
+    (
+        $(#[$attrs:meta])*
+        $v:vis struct $type:ident = $raw:ident;
+        $($CONFIG_NAME:ident = $value:expr;)* $(;)?
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt ["{}"]
+            @max [(<$raw>::MAX.get())]
+            @no_check_max [false]
+        }
+    };
+}
+
+#[macro_export]
 #[doc(hidden)]
 macro_rules! unknown_define_index_type_option {
     () => {};
@@ -610,6 +630,417 @@ macro_rules! __define_index_type_inner {
             #[inline]
             fn from(value: usize) -> Self {
                 $type::from_usize(value)
+            }
+        }
+
+        $crate::__internal_maybe_index_impl_serde!($type);
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __define_non_zero_index_type_inner {
+    // DISABLE_MAX_INDEX_CHECK
+    (
+        @configs [(DISABLE_MAX_INDEX_CHECK; $no_check_max:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$_old_no_check_max:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$max]
+            @no_check_max [$no_check_max]
+        }
+    };
+
+    // MAX_INDEX
+    (
+        @configs [(MAX_INDEX; $new_max:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$cm:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$new_max]
+            @no_check_max [$cm]
+        }
+    };
+
+    // DEFAULT
+    (
+        @configs [(DEFAULT; $default_expr:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$max]
+            @no_check_max [$no_check_max]
+        }
+        impl Default for $type {
+            #[inline]
+            fn default() -> Self {
+                $default_expr
+            }
+        }
+    };
+
+    // DEBUG_FORMAT
+    (
+        @configs [(DEBUG_FORMAT; $dbg:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$old_dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$max]
+            @no_check_max [$no_check_max]
+        }
+    };
+
+    // DISPLAY_FORMAT
+    (
+        @configs [(DISPLAY_FORMAT; $format:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$max]
+            @no_check_max [$no_check_max]
+        }
+
+        impl core::fmt::Display for $type {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                write!(f, $format, self.index())
+            }
+        }
+    };
+
+    // IMPL_RAW_CONVERSIONS
+    (
+        @configs [(IMPL_RAW_CONVERSIONS; $val:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+        $crate::__define_non_zero_index_type_inner!{
+            @configs [$(($CONFIG_NAME; $value))*]
+            @attrs [$(#[$attrs])*]
+            @derives [$(#[$derive])*]
+            @decl [$v struct $type ($raw)]
+            @debug_fmt [$dbg]
+            @max [$max]
+            @no_check_max [$no_check_max]
+        }
+        // Ensure they passed in true. This is... cludgey.
+        const _: [(); 1] = [(); $val as usize];
+
+        impl From<$type> for $raw {
+            #[inline]
+            fn from(v: $type) -> $raw {
+                v.raw()
+            }
+        }
+
+        impl From<$raw> for $type {
+            #[inline]
+            fn from(value: $raw) -> Self {
+                Self::from_raw(value)
+            }
+        }
+    };
+    // Try to make rust emit a decent error message...
+    (
+        @configs [($other:ident; $format:expr) $(($CONFIG_NAME:ident; $value:expr))*]
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+        $crate::unknown_define_index_type_option!($other);
+    };
+    // finish
+    (
+        @configs []
+        @attrs [$(#[$attrs:meta])*]
+        @derives [$(#[$derive:meta])*]
+        @decl [$v:vis struct $type:ident ($raw:ident)]
+        @debug_fmt [$dbg:expr]
+        @max [$max:expr]
+        @no_check_max [$no_check_max:expr]
+    ) => {
+
+        $(#[$derive])*
+        $(#[$attrs])*
+        #[repr(transparent)]
+        $v struct $type { _raw: $raw }
+
+        impl $type {
+            /// If `Self::CHECKS_MAX_INDEX` is true, we'll assert if trying to
+            /// produce a value larger than this in any of the ctors that don't
+            /// have `unchecked` in their name.
+            $v const MAX_INDEX: usize = $max;
+
+            /// Does this index type assert if asked to construct an index
+            /// larger than MAX_INDEX?
+            $v const CHECKS_MAX_INDEX: bool = !$no_check_max;
+
+            /// Construct this index type from a usize. Alias for `from_usize`.
+            #[inline(always)]
+            $v fn new(value: usize) -> Self {
+                Self::from_usize_unchecked(value)
+            }
+
+            /// Construct this index type from the wrapped integer type.
+            #[inline(always)]
+            $v fn from_raw(value: $raw) -> Self {
+                Self::from_usize_unchecked(value.get())
+            }
+
+            /// Construct this index type from one in a different domain
+            #[inline(always)]
+            $v fn from_foreign<F: $crate::Idx>(value: F) -> Self {
+                Self::from_usize_unchecked(value.index())
+            }
+
+            /// Construct from a usize without any checks.
+            #[inline(always)]
+            $v const fn from_usize_unchecked(value: usize) -> Self {
+                unsafe {
+                    Self { _raw: $raw::new_unchecked(value) }
+                }
+            }
+
+            /// Construct from the underlying type without any checks.
+            #[inline(always)]
+            $v const fn from_raw_unchecked(raw: $raw) -> Self {
+                Self { _raw: raw }
+            }
+
+            /// Construct this index type from a usize.
+            #[inline]
+            $v fn from_usize(value: usize) -> Self {
+                Self::check_index(value as usize);
+                Self::from_usize_unchecked(value)
+                // Self { _raw: $raw::from(value) }
+            }
+
+            /// Get the wrapped index as a usize.
+            #[inline(always)]
+            $v const fn index(self) -> usize {
+                self._raw.get()
+            }
+
+            /// Get the wrapped index.
+            #[inline(always)]
+            $v const fn raw(self) -> $raw {
+                self._raw
+            }
+
+            /// Asserts `v <= Self::MAX_INDEX` unless Self::CHECKS_MAX_INDEX is false.
+            #[inline]
+            $v fn check_index(v: usize) {
+                if Self::CHECKS_MAX_INDEX && (v > Self::MAX_INDEX) {
+                    $crate::__max_check_fail(v, Self::MAX_INDEX);
+                }
+            }
+
+            const _ENSURE_RAW_IS_UNSIGNED: [(); 1] = [(); <$raw>::MIN.get()];
+        }
+
+        impl core::fmt::Debug for $type {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                write!(f, $dbg, self.index())
+            }
+        }
+
+        impl core::cmp::PartialOrd<usize> for $type {
+            #[inline]
+            fn partial_cmp(&self, other: &usize) -> Option<core::cmp::Ordering> {
+                self.index().partial_cmp(other)
+            }
+        }
+
+        impl core::cmp::PartialOrd<$type> for usize {
+            #[inline]
+            fn partial_cmp(&self, other: &$type) -> Option<core::cmp::Ordering> {
+                self.partial_cmp(&other.index())
+            }
+        }
+
+        impl PartialEq<usize> for $type {
+            #[inline]
+            fn eq(&self, other: &usize) -> bool {
+                self.index() == *other
+            }
+        }
+
+        impl PartialEq<$type> for usize {
+            #[inline]
+            fn eq(&self, other: &$type) -> bool {
+                *self == other.index()
+            }
+        }
+
+        impl core::ops::Add<usize> for $type {
+            type Output = Self;
+            #[inline]
+            fn add(self, other: usize) -> Self {
+                // use wrapping add so that it's up to the index type whether or
+                // not to check -- e.g. if checks are disabled, they're disabled
+                // on both debug and release.
+                Self::new(self.index().wrapping_add(other))
+            }
+        }
+
+        impl core::ops::Sub<usize> for $type {
+            type Output = Self;
+            #[inline]
+            fn sub(self, other: usize) -> Self {
+                // use wrapping sub so that it's up to the index type whether or
+                // not to check -- e.g. if checks are disabled, they're disabled
+                // on both debug and release.
+                Self::new(self.index().wrapping_sub(other))
+            }
+        }
+
+        impl core::ops::AddAssign<usize> for $type {
+            #[inline]
+            fn add_assign(&mut self, other: usize) {
+                *self = *self + other
+            }
+        }
+
+        impl core::ops::SubAssign<usize> for $type {
+            #[inline]
+            fn sub_assign(&mut self, other: usize) {
+                *self = *self - other;
+            }
+        }
+
+        impl core::ops::Rem<usize> for $type {
+            type Output = Self;
+            #[inline]
+            fn rem(self, other: usize) -> Self {
+                Self::new(self.index() % other)
+            }
+        }
+
+        impl core::ops::Add<$type> for usize {
+            type Output = $type;
+            #[inline]
+            fn add(self, other: $type) -> $type {
+                other + self
+            }
+        }
+
+        impl core::ops::Sub<$type> for usize {
+            type Output = $type;
+            #[inline]
+            fn sub(self, other: $type) -> $type {
+                $type::new(self.wrapping_sub(other.index()))
+            }
+        }
+
+        impl core::ops::Add for $type {
+            type Output = $type;
+            #[inline]
+            fn add(self, other: $type) -> $type {
+                $type::new(other.index() + self.index())
+            }
+        }
+
+        impl core::ops::Sub for $type {
+            type Output = $type;
+            #[inline]
+            fn sub(self, other: $type) -> $type {
+                $type::new(self.index().wrapping_sub(other.index()))
+            }
+        }
+
+        impl core::ops::AddAssign for $type {
+            #[inline]
+            fn add_assign(&mut self, other: $type) {
+                *self = *self + other
+            }
+        }
+
+        impl core::ops::SubAssign for $type {
+            #[inline]
+            fn sub_assign(&mut self, other: $type) {
+                *self = *self - other;
+            }
+        }
+
+        impl $crate::Idx for $type {
+            #[inline]
+            fn from_usize(value: usize) -> Self {
+                Self::from(value)
+            }
+
+            #[inline]
+            fn index(self) -> usize {
+                usize::from(self)
+            }
+        }
+
+        impl From<$type> for usize {
+            #[inline]
+            fn from(v: $type) -> usize {
+                v.index()
+            }
+        }
+
+        impl From<usize> for $type {
+            #[inline]
+            fn from(value: usize) -> Self {
+                $type::from_usize_unchecked(value)
             }
         }
 
